@@ -1,0 +1,28 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+title Чтение списка новых заказов (Refresh-Ahead + fallback на Cache-Aside)
+
+actor "Operator (MES UI)" as UI
+participant "MES API" as API
+participant "Redis Cache" as C
+database "MES DB" as DB
+participant "Cache Refresher\n(Refresh-Ahead)" as R
+
+== Чтение ==
+UI -> API: GET /order?status=NEW
+API -> C: GET order:dashboard:new
+alt cache hit
+  C --> API: список заказов
+else cache miss
+  API -> DB: SELECT newest orders
+  DB --> API: список заказов
+  API -> C: SET order:dashboard:new (TTL)
+end
+API --> UI: список заказов
+
+== Фоновое обновление (Refresh-Ahead) ==
+note over R, C: Воркер обновляет запись до истечения TTL
+R -> DB: SELECT newest orders
+R -> C: UPDATE order:dashboard:new
+@enduml
