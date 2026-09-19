@@ -1,0 +1,25 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+title Запись статуса заказа и инвалидация кэша
+
+actor "Operator (MES UI)" as UI
+participant "MES API" as API
+database "MES DB" as DB
+queue "Pub/Sub\n(order.status_changed)" as EV
+participant "Redis Cache" as C
+participant "WebSocket/SSE" as WS
+
+UI -> API: POST /order/{id}/take
+API -> DB: UPDATE status (optimistic lock)
+DB --> API: OK
+API --> UI: 200 (заказ взят)
+API -> EV: publish order.status_changed
+
+par
+  EV -> C: invalidate order:{id}
+  EV -> C: обновить список заказов
+  EV -> WS: обновление списка/статуса
+end
+WS --> UI: свежий список без перезагрузки
+@enduml
